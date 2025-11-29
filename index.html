@@ -2,37 +2,44 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Precision Draw Game</title>
+<title>Precision Draw Game — Updated</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-  body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-  .canvas-container { position: relative; width: 90vw; max-width: 400px; margin-top: 10px; }
-  canvas { border: 1px solid black; width: 100%; height: auto; touch-action: none; }
+  :root{--maxw:420px}
+  body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 18px; gap:8px; }
+  .controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center}
+  .canvas-container { position: relative; width: 90vw; max-width: var(--maxw); margin-top: 6px; }
+  canvas { border: 1px solid #111; width: 100%; height: auto; touch-action: none; display:block }
   #overlayCanvas { position: absolute; left: 0; top: 0; pointer-events: none; }
-  button { margin-top: 10px; padding: 10px 20px; font-size: 16px; }
-  select { margin-top: 10px; font-size: 16px; padding: 5px; }
-  ul { margin-top: 15px; padding-left: 20px; max-width: 400px; width: 90vw; }
+  button { padding: 8px 12px; font-size:14px; border-radius:6px }
+  select { padding:6px 8px; font-size:14px }
+  .info { max-width:var(--maxw); width:90vw; display:flex;justify-content:center; gap:8px; font-size:15px; margin-top:6px; }
+  ul { margin-top: 8px; padding-left: 20px; max-width: var(--maxw); width: 90vw; }
   li { margin-bottom: 4px; }
 </style>
 </head>
 <body>
 
-<button id="modeToggle">Switch to Shapes</button>
-<select id="polygonSelect"></select>
-
-<p>Score: <span id="scoreFinal">-</span></p>
-
-<div class="canvas-container">
-  <canvas id="drawCanvas" width="256" height="256"></canvas>
-  <canvas id="overlayCanvas" width="256" height="256"></canvas>
+<div class="controls">
+  <button id="modeToggle">Switch to Shapes</button>
+  <select id="polygonSelect" aria-label="shape or country"></select>
+  <button id="submitBtn">Submit / Clear</button>
 </div>
 
-<button id="submitBtn">Submit / Clear</button>
+<div class="info">
+  <div>Score: <strong id="scoreFinal">-</strong></div>
+</div>
 
-<h3>Best Scores</h3>
+<div class="canvas-container">
+  <canvas id="drawCanvas" width="384" height="384"></canvas>
+  <canvas id="overlayCanvas" width="384" height="384"></canvas>
+</div>
+
+<h3 style="margin:6px 0">Best Scores</h3>
 <ul id="bestScoresList"></ul>
 
 <script>
+// ----------------- Elements -----------------
 const drawCanvas = document.getElementById('drawCanvas');
 const overlayCanvas = document.getElementById('overlayCanvas');
 const drawCtx = drawCanvas.getContext('2d');
@@ -44,13 +51,14 @@ const submitBtn = document.getElementById('submitBtn');
 const modeToggleBtn = document.getElementById('modeToggle');
 const bestScoresListEl = document.getElementById('bestScoresList');
 
+// ----------------- State -----------------
 let userPoints = [];
 let drawing = false;
 let overlayShown = false;
 let mode = 'Countries';
 const bestScores = {};
 
-// --- Helpers ---
+// ----------------- Helpers -----------------
 function getMousePos(e){
   const rect = drawCanvas.getBoundingClientRect();
   const scaleX = drawCanvas.width / rect.width;
@@ -63,31 +71,35 @@ function getTouchPos(touch){
   const scaleY = drawCanvas.height / rect.height;
   return { x: (touch.clientX - rect.left) * scaleX, y: (touch.clientY - rect.top) * scaleY };
 }
+
 function resampleUniform(points,N){
   if(points.length<2) return points.slice();
-  let lens=[0], L=0;
+  const lens=[0]; let L=0;
   for(let i=1;i<points.length;i++){
-    L += Math.hypot(points[i][0]-points[i-1][0],points[i][1]-points[i-1][1]);
+    L += Math.hypot(points[i][0]-points[i-1][0], points[i][1]-points[i-1][1]);
     lens.push(L);
   }
-  let out=[];
+  if(L===0) return Array(N).fill(points[0]);
+  const out=[];
   for(let i=0;i<N;i++){
-    let t = L*(i/(N-1));
-    let idx = lens.findIndex(v=>v>=t);
+    const t = L*(i/(N-1));
+    let idx = 0;
+    while(idx<lens.length && lens[idx]<t) idx++;
     if(idx<=0) out.push(points[0]);
-    else {
-      let t0=lens[idx-1], t1=lens[idx];
-      let ratio = (t-t0)/(t1-t0);
+    else{
+      const t0 = lens[idx-1], t1 = lens[idx];
+      const ratio = (t - t0) / (t1 - t0 || 1);
       const [x0,y0] = points[idx-1];
       const [x1,y1] = points[idx];
-      out.push([x0 + ratio*(x1-x0), y0 + ratio*(y1-y0)]);
+      out.push([ x0 + ratio*(x1-x0), y0 + ratio*(y1-y0) ]);
     }
   }
   return out;
 }
-function dist(a,b){ return Math.hypot(a[0]-b[0],a[1]-b[1]); }
+
+function dist(a,b){ return Math.hypot(a[0]-b[0], a[1]-b[1]); }
 function chamfer(A,B){
-  if(A.length===0 || B.length===0) return Infinity;
+  if(!A.length || !B.length) return Infinity;
   const avgMin = (from,to)=>{
     let total=0;
     for(const p of from){
@@ -97,280 +109,296 @@ function chamfer(A,B){
     }
     return total/from.length;
   };
-  return 0.5*(avgMin(A,B)+avgMin(B,A));
+  return 0.5*(avgMin(A,B) + avgMin(B,A));
 }
+
 function centroid(points){
-  const N = points.length;
-  let sumX=0,sumY=0;
-  for(const [x,y] of points){ sumX+=x; sumY+=y; }
-  return [sumX/N, sumY/N];
+  let sx=0, sy=0;
+  for(const [x,y] of points){ sx+=x; sy+=y; }
+  return [sx/points.length, sy/points.length];
 }
+
 function averageRadius(points, c){
-  let total=0;
+  let total=0; 
   for(const [x,y] of points) total += Math.hypot(x-c[0], y-c[1]);
-  return total/points.length;
+  return total/(points.length||1);
 }
+
 function rotateScaleTranslate(points, angle, scale, c){
   const cosA = Math.cos(angle), sinA = Math.sin(angle);
   return points.map(([x,y])=>{
-    const dx = x-c[0], dy = y-c[1];
+    const dx = x - c[0], dy = y - c[1];
     const xr = cosA*dx - sinA*dy;
     const yr = sinA*dx + cosA*dy;
-    return [c[0] + scale*xr, c[1] + scale*yr];
+    return [ c[0] + scale*xr, c[1] + scale*yr ];
   });
 }
 function translatePoints(points, tx, ty){
   return points.map(([x,y])=>[x+tx, y+ty]);
 }
+
 function erfinv(x){
-  let a = 0.147;
-  let ln = Math.log(1-x*x);
-  let s = (2/(Math.PI*a) + ln/2);
-  return (x<0?-1:1) * Math.sqrt(Math.sqrt(s*s - ln/a) - s);
+  const a = 0.147;
+  const ln = Math.log(1 - x*x);
+  const s = (2/(Math.PI*a) + ln/2);
+  return (x<0 ? -1 : 1) *
+    Math.sqrt( Math.sqrt(s*s - ln/a) - s );
 }
 function normInv(p){ return Math.sqrt(2)*erfinv(2*p-1); }
+
 function lhsGaussianSamples(numSamples, mean=0, std=1){
-  let uniformSamples = [];
+  let uniform = [];
   const interval = 1/numSamples;
-  for(let i=0;i<numSamples;i++) uniformSamples.push((i+Math.random())*interval);
-  for(let i=uniformSamples.length-1;i>0;i--){
-    const j = Math.floor(Math.random()* (i+1));
-    [uniformSamples[i], uniformSamples[j]] = [uniformSamples[j], uniformSamples[i]];
+  for(let i=0;i<numSamples;i++) uniform.push( (i + Math.random())*interval );
+  for(let i=uniform.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [uniform[i], uniform[j]] = [uniform[j], uniform[i]];
   }
-  return uniformSamples.map(u => normInv(u)*std + mean);
+  return uniform.map(u => normInv(u)*std + mean);
 }
 function lhsUniform(numSamples, min, max){
-  const interval = (max-min)/numSamples;
-  let samples = [];
-  for(let i=0;i<numSamples;i++) samples.push(min + interval*i + Math.random()*interval);
-  for(let i=samples.length-1;i>0;i--){
-    const j = Math.floor(Math.random()* (i+1));
-    [samples[i], samples[j]] = [samples[j], samples[i]];
+  const interval = (max-min)/numSamples; 
+  let s=[];
+  for(let i=0;i<numSamples;i++)
+    s.push(min + interval*i + Math.random()*interval);
+  for(let i=s.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [s[i], s[j]] = [s[j], s[i]];
   }
-  return samples;
+  return s;
 }
 
-// --- Generate n-gon or circle with fixed total points ---
-function generateNgon(n, center=[128,128], radius=50, totalPoints=2000){
+function generateNgon(n, center=[192,192], radius=80, totalPoints=2000){
   const vertices = [];
   for(let i=0;i<n;i++){
     const angle = 2*Math.PI*i/n - Math.PI/2;
-    vertices.push([center[0]+radius*Math.cos(angle), center[1]+radius*Math.sin(angle)]);
+    vertices.push([ center[0] + radius*Math.cos(angle),
+                    center[1] + radius*Math.sin(angle) ]);
   }
   const points = [];
+  const perEdge = Math.ceil(totalPoints/n);
   for(let i=0;i<n;i++){
     const [x0,y0] = vertices[i];
     const [x1,y1] = vertices[(i+1)%n];
-    const pointsOnEdge = Math.ceil(totalPoints/n);
-    for(let j=0;j<pointsOnEdge;j++){
-      const t = j/(pointsOnEdge-1);
-      points.push([x0 + t*(x1-x0), y0 + t*(y1-y0)]);
+    for(let j=0;j<perEdge;j++){
+      const t = (perEdge===1) ? 0 : j/(perEdge-1);
+      points.push([ x0 + t*(x1-x0), y0 + t*(y1-y0) ]);
     }
   }
   return points.slice(0,totalPoints);
 }
 
-// --- Get shape points ---
 async function getShapePoints(shapeValue){
   if(mode === 'Shapes'){
     const polygonMap = { "Circle":100, "Triangle":3, "Square":4, "Pentagon":5, "Hexagon":6, "Heptagon":7, "Octagon":8 };
     if(shapeValue in polygonMap){
-      const n = shapeValue === "Circle" ? 100 : polygonMap[shapeValue];
-      return generateNgon(n); // fixed total points
+      const n = shapeValue === 'Circle' ? 100 : polygonMap[shapeValue];
+      return generateNgon(n);
     }
     return [];
-  } else if(mode === 'Countries'){
-    try{
-      const filename = shapeValue.replace(/ /g, "_");
-      const res = await fetch(`countries/${filename}.json`);
-      if(res.ok) return await res.json();
-    } catch(e){ console.error("Failed to load country:", e); }
-    return [];
-  }
-}
-
-// --- Populate dropdown ---
-async function populateDropdownByMode(){
-  clearAll();
-  polygonSelect.innerHTML = '';
-  if(mode==='Shapes'){
-    const shapes = ["Circle","Triangle","Square","Pentagon","Hexagon","Heptagon","Octagon"];
-    shapes.forEach(s=>{
-      const opt = document.createElement('option');
-      opt.value = s; opt.textContent = s;
-      if(s==='Circle') opt.selected = true;
-      polygonSelect.appendChild(opt);
-    });
-    modeToggleBtn.textContent = "Switch to Countries";
   } else {
     try{
-      const res = await fetch('countries/list.json');
-      if(!res.ok) throw new Error("Failed to fetch country list");
-      const countries = await res.json();
-      countries.forEach((c,i)=>{
-        const opt = document.createElement('option');
-        opt.value=c;
-        opt.textContent=c.replace(/_/g,' ');
-        if(c==='Australia') opt.selected = true;
-        polygonSelect.appendChild(opt);
-      });
-      modeToggleBtn.textContent = "Switch to Shapes";
-    } catch(e){
-      console.error(e);
-      const opt = document.createElement('option');
-      opt.textContent = "Error loading countries";
-      polygonSelect.appendChild(opt);
-    }
+      const filename = shapeValue.replace(/ /g,'_');
+      const res = await fetch(`countries/${filename}.json`);
+      if(res.ok) return await res.json();
+    }catch(e){ console.error('Failed to load country', e); }
+    return [];
   }
 }
 
-// --- Mode toggle ---
-modeToggleBtn.addEventListener('click', async ()=>{
-  mode = (mode==='Shapes') ? 'Countries' : 'Shapes';
-  await populateDropdownByMode();
-});
-
-// --- Clear ---
+// ----------------- UI helpers -----------------
+function drawPoints(ctx, points, color='orange', size=1.5){
+  ctx.fillStyle = color;
+  for(const [x,y] of points){
+    ctx.beginPath(); ctx.arc(x,y,size,0,2*Math.PI); ctx.fill();
+  }
+}
 function clearAll(){
-  drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);
-  overlayCtx.clearRect(0,0,overlayCanvas.width,overlayCanvas.height);
+  drawCtx.clearRect(0,0,drawCanvas.width, drawCanvas.height);
+  overlayCtx.clearRect(0,0,overlayCanvas.width, overlayCanvas.height);
   userPoints = [];
   drawing = false;
   overlayShown = false;
-  scoreFinalEl.textContent="-";
+  scoreFinalEl.textContent = '-';
 }
-
-// --- Draw points ---
-function drawPoints(ctx, points, color='orange', size=2){
-  ctx.fillStyle=color;
-  for(const [x,y] of points){
-    ctx.beginPath();
-    ctx.arc(x,y,size,0,2*Math.PI);
-    ctx.fill();
+function updateBestScoresList(){
+  const arr = Object.entries(bestScores).sort((a,b)=>b[1]-a[1]);
+  bestScoresListEl.innerHTML = '';
+  for(const [k,v] of arr){
+    const li=document.createElement('li');
+    li.textContent = `${k}: ${v.toFixed(2)}`;
+    bestScoresListEl.appendChild(li);
   }
 }
 
-// --- Update best scores list ---
-function updateBestScoresList(){
-  const scoresArray = Object.entries(bestScores);
-  scoresArray.sort((a,b)=>b[1]-a[1]);
-  bestScoresListEl.innerHTML='';
-  scoresArray.forEach(([name,score])=>{
-    const li = document.createElement('li');
-    li.textContent = `${name}: ${score.toFixed(2)}`;
-    bestScoresListEl.appendChild(li);
-  });
-}
-
-// --- Submit / Clear ---
+// ----------------- Main scoring -----------------
 async function handleSubmitOrClear(){
   if(!overlayShown){
-    if(userPoints.length===0) return;
+    if(userPoints.length<2) return;
 
-    const N = 40;
-    const userResampled = resampleUniform(userPoints,N);
+    const N = 80;
+    const userResampled = resampleUniform(userPoints, N);
+
     const shapeValue = polygonSelect.value;
     const baseShape = await getShapePoints(shapeValue);
-    const polyResampled = resampleUniform(baseShape,N);
+    if(!baseShape.length){ alert('No shape data available'); return; }
 
+    const polyResampled = resampleUniform(baseShape, N);
+
+    // heuristic
     const cUser = centroid(userResampled);
-    const baseline = chamfer([cUser], userResampled);
-
     const cPoly = centroid(polyResampled);
-    const H_scale = averageRadius(userResampled,cUser)/averageRadius(polyResampled,cPoly);
-    const H_tx = cUser[0]-cPoly[0];
-    const H_ty = cUser[1]-cPoly[1];
+    const H_scale = averageRadius(userResampled, cUser) /
+                    averageRadius(polyResampled, cPoly);
+    const H_tx = cUser[0] - cPoly[0];
+    const H_ty = cUser[1] - cPoly[1];
 
-    let heuristicAligned = rotateScaleTranslate(polyResampled,0,H_scale,cPoly);
-    heuristicAligned = translatePoints(heuristicAligned,H_tx,H_ty);
+    let heuristicAligned = rotateScaleTranslate(polyResampled, 0, H_scale, cPoly);
+    heuristicAligned = translatePoints(heuristicAligned, H_tx, H_ty);
 
-    const NUM_SAMPLES = 10000;
-    const txSamples = lhsGaussianSamples(NUM_SAMPLES,0,2);
-    const tySamples = lhsGaussianSamples(NUM_SAMPLES,0,2);
-    const scaleSamples = lhsGaussianSamples(NUM_SAMPLES,1,0.03);
-    const thetaSamples = lhsUniform(NUM_SAMPLES,0,2*Math.PI);
+    // baseline
+    const cTarget = centroid(baseShape);
+    let baseline = chamfer([cTarget], baseShape);
+    if(!isFinite(baseline) || baseline===0) baseline = 1e-6;
 
-    let bestScorePct = -Infinity;
-    let bestTx=0, bestTy=0, bestTheta=0, bestScale=0;
+    // --------------------- SEARCH ---------------------
+    const NUM_SAMPLES = 2500;
+
+    const txSamples = lhsGaussianSamples(NUM_SAMPLES, 0, 2);
+    const tySamples = lhsGaussianSamples(NUM_SAMPLES, 0, 2);
+
+    // ★ DYNAMIC ANGLE RANGE
+    const thetaMin = (mode === 'Shapes') ? -Math.PI : -Math.PI/12;
+    const thetaMax = (mode === 'Shapes') ?  Math.PI :  Math.PI/12;
+
+    const thetaSamples = lhsUniform(NUM_SAMPLES, thetaMin, thetaMax);
+
+    const scaleSamples = lhsGaussianSamples(NUM_SAMPLES, 1, 0.03);
+
+    let bestScore = -Infinity;
+    let bestTx=0,bestTy=0,bestTheta=0,bestScale=1;
     const cHeuristic = centroid(heuristicAligned);
 
     for(let i=0;i<NUM_SAMPLES;i++){
-      const tx=txSamples[i], ty=tySamples[i], theta=thetaSamples[i], s=scaleSamples[i];
-      let candidate = rotateScaleTranslate(heuristicAligned,theta,s,cHeuristic);
-      candidate = translatePoints(candidate,tx,ty);
-      const scorePct = (1 - chamfer(userResampled,candidate)/baseline)*100;
-      if(scorePct>bestScorePct){
-        bestScorePct = scorePct;
+      const tx = txSamples[i], ty = tySamples[i];
+      const theta = thetaSamples[i], s = scaleSamples[i];
+
+      let candidate = rotateScaleTranslate(heuristicAligned, theta, s, cHeuristic);
+      candidate = translatePoints(candidate, tx, ty);
+
+      const rawCham = chamfer(userResampled, candidate);
+      const scoreProxy = -rawCham;
+
+      if(scoreProxy > bestScore){
+        bestScore = scoreProxy;
         bestTx=tx; bestTy=ty; bestTheta=theta; bestScale=s;
       }
     }
 
+    // apply best transform high-res
     const cBase = centroid(baseShape);
-    let finalHighRes = rotateScaleTranslate(baseShape, bestTheta, bestScale*H_scale, cBase);
-    finalHighRes = translatePoints(finalHighRes, H_tx+bestTx, H_ty+bestTy);
+    const combinedScale = H_scale * bestScale;
+    let finalHighRes = rotateScaleTranslate(baseShape, bestTheta, combinedScale, cBase);
+    finalHighRes = translatePoints(finalHighRes, H_tx + bestTx, H_ty + bestTy);
 
-    drawPoints(overlayCtx, finalHighRes,'orange',1);
-    scoreFinalEl.textContent = bestScorePct.toFixed(2);
+    const rawChamferFinal = chamfer(userResampled, finalHighRes);
 
-    if(!bestScores[shapeValue] || bestScorePct > bestScores[shapeValue]){
-      bestScores[shapeValue] = bestScorePct;
+    let scorePct = (1 - rawChamferFinal / combinedScale / baseline) * 100;
+    if(!isFinite(scorePct)) scorePct = -999;
+
+    overlayCtx.clearRect(0,0,overlayCanvas.width, overlayCanvas.height);
+    overlayCtx.globalAlpha = 0.95;
+    drawPoints(overlayCtx, finalHighRes, 'orange', 1);
+    overlayCtx.globalAlpha = 1.0;
+
+    scoreFinalEl.textContent = scorePct.toFixed(2);
+
+    if(!bestScores[shapeValue] || scorePct > bestScores[shapeValue]){
+      bestScores[shapeValue] = scorePct;
       updateBestScoresList();
     }
 
     overlayShown = true;
+
   } else {
     clearAll();
   }
 }
 
-// --- Drawing events ---
-drawCanvas.addEventListener('mousedown', e => {
-  if(overlayShown) return;
-  drawing = true;
-  const p = getMousePos(e);
-  drawCtx.beginPath();
-  drawCtx.moveTo(p.x,p.y);
+// ----------------- Drawing events -----------------
+function beginDraw(p){
+  drawCtx.beginPath(); 
+  drawCtx.moveTo(p.x,p.y); 
   userPoints.push([p.x,p.y]);
-});
-drawCanvas.addEventListener('mousemove', e => {
-  if(!drawing || overlayShown) return;
-  const p = getMousePos(e);
+}
+function continueDraw(p){
   drawCtx.lineTo(p.x,p.y);
   drawCtx.stroke();
   userPoints.push([p.x,p.y]);
-});
-drawCanvas.addEventListener('mouseup', ()=> drawing=false);
+}
+
+drawCanvas.addEventListener('mousedown', e => { if(overlayShown) return; drawing=true; beginDraw(getMousePos(e)); });
+drawCanvas.addEventListener('mousemove', e => { if(!drawing || overlayShown) return; continueDraw(getMousePos(e)); });
+window.addEventListener('mouseup', ()=> drawing=false);
 drawCanvas.addEventListener('mouseleave', ()=> drawing=false);
 
-drawCanvas.addEventListener('touchstart', e => {
-  if(overlayShown) return;
-  e.preventDefault();
-  const touch = e.touches[0];
-  drawing = true;
-  const p = getTouchPos(touch);
-  drawCtx.beginPath();
-  drawCtx.moveTo(p.x,p.y);
-  userPoints.push([p.x,p.y]);
-});
-drawCanvas.addEventListener('touchmove', e => {
-  if(!drawing || overlayShown) return;
-  e.preventDefault();
-  const touch = e.touches[0];
-  const p = getTouchPos(touch);
-  drawCtx.lineTo(p.x,p.y);
-  drawCtx.stroke();
-  userPoints.push([p.x,p.y]);
-});
+drawCanvas.addEventListener('touchstart', e => { if(overlayShown) return; e.preventDefault(); drawing=true; beginDraw(getTouchPos(e.touches[0])); });
+drawCanvas.addEventListener('touchmove', e => { if(!drawing || overlayShown) return; e.preventDefault(); continueDraw(getTouchPos(e.touches[0])); });
 drawCanvas.addEventListener('touchend', e => { e.preventDefault(); drawing=false; });
 
-// --- Events ---
+// ----------------- Init + mode switching -----------------
 submitBtn.addEventListener('click', handleSubmitOrClear);
-window.addEventListener('keydown', async e=>{
-  if(e.key==="Enter"){ e.preventDefault(); await handleSubmitOrClear(); }
-});
+window.addEventListener('keydown', async e => { if(e.key === 'Enter'){ e.preventDefault(); await handleSubmitOrClear(); } });
 polygonSelect.addEventListener('change', clearAll);
 
+async function populateDropdownByMode(){
+  clearAll(); 
+  polygonSelect.innerHTML='';
+
+  if(mode === 'Shapes'){
+    const shapes = ['Circle','Triangle','Square','Pentagon','Hexagon','Heptagon','Octagon'];
+    shapes.forEach(s=>{
+      const o=document.createElement('option');
+      o.value = o.textContent = s;
+      polygonSelect.appendChild(o);
+    });
+
+    polygonSelect.value = 'Circle';
+    modeToggleBtn.textContent = 'Switch to Countries';
+
+  } else {
+    try{
+      const res = await fetch('countries/list.json');
+      const countries = await res.json();
+      countries.forEach(c=>{
+        const o=document.createElement('option');
+        o.value = c; 
+        o.textContent = c.replace(/_/g,' ');
+        polygonSelect.appendChild(o);
+      });
+
+      if (countries.includes('Australia')) {
+        polygonSelect.value = 'Australia';
+      }
+
+      modeToggleBtn.textContent = 'Switch to Shapes';
+
+    } catch(e){
+      console.warn(e);
+      const o=document.createElement('option');
+      o.textContent='Countries unavailable';
+      polygonSelect.appendChild(o);
+    }
+  }
+}
+
+modeToggleBtn.addEventListener('click', async ()=>{
+  mode = (mode==='Shapes') ? 'Countries' : 'Shapes';
+  await populateDropdownByMode();
+});
+
 populateDropdownByMode();
+
 </script>
 </body>
 </html>
