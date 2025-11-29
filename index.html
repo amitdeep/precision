@@ -13,7 +13,7 @@
   #overlayCanvas { position: absolute; left: 0; top: 0; pointer-events: none; }
   button { padding: 8px 12px; font-size:14px; border-radius:6px }
   select { padding:6px 8px; font-size:14px }
-  .info { max-width:var(--maxw); width:90vw; display:flex;justify-content:center; gap:8px; font-size:15px; margin-top:6px; }
+  .info { max-width:var(--maxw); width:90vw; display:flex;justify-content:center; gap:12px; font-size:15px; margin-top:6px; flex-wrap:wrap }
   ul { margin-top: 8px; padding-left: 20px; max-width: var(--maxw); width: 90vw; }
   li { margin-bottom: 4px; }
 </style>
@@ -28,6 +28,9 @@
 
 <div class="info">
   <div>Score: <strong id="scoreFinal">-</strong></div>
+  <div>Tx (search): <strong id="bestTx">-</strong></div>
+  <div>Ty (search): <strong id="bestTy">-</strong></div>
+  <div>Scale (search): <strong id="bestScale">-</strong></div>
 </div>
 
 <div class="canvas-container">
@@ -46,6 +49,10 @@ const drawCtx = drawCanvas.getContext('2d');
 const overlayCtx = overlayCanvas.getContext('2d');
 
 const scoreFinalEl = document.getElementById('scoreFinal');
+const bestTxEl = document.getElementById('bestTx');
+const bestTyEl = document.getElementById('bestTy');
+const bestScaleEl = document.getElementById('bestScale');
+
 const polygonSelect = document.getElementById('polygonSelect');
 const submitBtn = document.getElementById('submitBtn');
 const modeToggleBtn = document.getElementById('modeToggle');
@@ -97,7 +104,7 @@ function resampleUniform(points,N){
   return out;
 }
 
-function dist(a,b){ return Math.hypot(a[0]-b[0], a[1]-b[1]); }
+function dist(a, b) { return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]); }
 function chamfer(A,B){
   if(!A.length || !B.length) return Infinity;
   const avgMin = (from,to)=>{
@@ -141,11 +148,9 @@ function erfinv(x){
   const a = 0.147;
   const ln = Math.log(1 - x*x);
   const s = (2/(Math.PI*a) + ln/2);
-  return (x<0 ? -1 : 1) *
-    Math.sqrt( Math.sqrt(s*s - ln/a) - s );
+  return (x<0 ? -1 : 1) * Math.sqrt( Math.sqrt(s*s - ln/a) - s );
 }
 function normInv(p){ return Math.sqrt(2)*erfinv(2*p-1); }
-
 function lhsGaussianSamples(numSamples, mean=0, std=1){
   let uniform = [];
   const interval = 1/numSamples;
@@ -220,6 +225,9 @@ function clearAll(){
   drawing = false;
   overlayShown = false;
   scoreFinalEl.textContent = '-';
+  bestTxEl.textContent = '-';
+  bestTyEl.textContent = '-';
+  bestScaleEl.textContent = '-';
 }
 function updateBestScoresList(){
   const arr = Object.entries(bestScores).sort((a,b)=>b[1]-a[1]);
@@ -236,7 +244,7 @@ async function handleSubmitOrClear(){
   if(!overlayShown){
     if(userPoints.length<2) return;
 
-    const N = 80;
+    const N = 40;
     const userResampled = resampleUniform(userPoints, N);
 
     const shapeValue = polygonSelect.value;
@@ -245,34 +253,26 @@ async function handleSubmitOrClear(){
 
     const polyResampled = resampleUniform(baseShape, N);
 
-    // heuristic
+    // heuristic alignment
     const cUser = centroid(userResampled);
     const cPoly = centroid(polyResampled);
-    const H_scale = averageRadius(userResampled, cUser) /
-                    averageRadius(polyResampled, cPoly);
+    const H_scale = averageRadius(userResampled, cUser) / averageRadius(polyResampled, cPoly);
     const H_tx = cUser[0] - cPoly[0];
     const H_ty = cUser[1] - cPoly[1];
-
     let heuristicAligned = rotateScaleTranslate(polyResampled, 0, H_scale, cPoly);
     heuristicAligned = translatePoints(heuristicAligned, H_tx, H_ty);
 
-    // baseline
     const cTarget = centroid(baseShape);
     let baseline = chamfer([cTarget], baseShape);
     if(!isFinite(baseline) || baseline===0) baseline = 1e-6;
 
     // --------------------- SEARCH ---------------------
-    const NUM_SAMPLES = 2500;
-
-    const txSamples = lhsGaussianSamples(NUM_SAMPLES, 0, 2);
-    const tySamples = lhsGaussianSamples(NUM_SAMPLES, 0, 2);
-
-    // ★ DYNAMIC ANGLE RANGE
+    const NUM_SAMPLES = 50000;
+    const txSamples = lhsGaussianSamples(NUM_SAMPLES, 0, 4);
+    const tySamples = lhsGaussianSamples(NUM_SAMPLES, 0, 4);
     const thetaMin = (mode === 'Shapes') ? -Math.PI : -Math.PI/12;
     const thetaMax = (mode === 'Shapes') ?  Math.PI :  Math.PI/12;
-
     const thetaSamples = lhsUniform(NUM_SAMPLES, thetaMin, thetaMax);
-
     const scaleSamples = lhsGaussianSamples(NUM_SAMPLES, 1, 0.03);
 
     let bestScore = -Infinity;
@@ -295,14 +295,13 @@ async function handleSubmitOrClear(){
       }
     }
 
-    // apply best transform high-res
+    // apply best transform to base shape
     const cBase = centroid(baseShape);
     const combinedScale = H_scale * bestScale;
     let finalHighRes = rotateScaleTranslate(baseShape, bestTheta, combinedScale, cBase);
     finalHighRes = translatePoints(finalHighRes, H_tx + bestTx, H_ty + bestTy);
 
     const rawChamferFinal = chamfer(userResampled, finalHighRes);
-
     let scorePct = (1 - rawChamferFinal / combinedScale / baseline) * 100;
     if(!isFinite(scorePct)) scorePct = -999;
 
@@ -311,7 +310,11 @@ async function handleSubmitOrClear(){
     drawPoints(overlayCtx, finalHighRes, 'orange', 1);
     overlayCtx.globalAlpha = 1.0;
 
+    // DISPLAY only search contribution
     scoreFinalEl.textContent = scorePct.toFixed(2);
+    bestTxEl.textContent = bestTx.toFixed(2);
+    bestTyEl.textContent = bestTy.toFixed(2);
+    bestScaleEl.textContent = bestScale.toFixed(4);
 
     if(!bestScores[shapeValue] || scorePct > bestScores[shapeValue]){
       bestScores[shapeValue] = scorePct;
@@ -362,7 +365,6 @@ async function populateDropdownByMode(){
       o.value = o.textContent = s;
       polygonSelect.appendChild(o);
     });
-
     polygonSelect.value = 'Circle';
     modeToggleBtn.textContent = 'Switch to Countries';
 
@@ -376,13 +378,8 @@ async function populateDropdownByMode(){
         o.textContent = c.replace(/_/g,' ');
         polygonSelect.appendChild(o);
       });
-
-      if (countries.includes('Australia')) {
-        polygonSelect.value = 'Australia';
-      }
-
+      if (countries.includes('Australia')) polygonSelect.value = 'Australia';
       modeToggleBtn.textContent = 'Switch to Shapes';
-
     } catch(e){
       console.warn(e);
       const o=document.createElement('option');
