@@ -6,26 +6,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
   body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-  .canvas-container { position: relative; width: 90vw; max-width: 400px; }
+  .canvas-container { position: relative; width: 90vw; max-width: 400px; margin-top: 10px; }
   canvas { border: 1px solid black; width: 100%; height: auto; touch-action: none; }
   #overlayCanvas { position: absolute; left: 0; top: 0; pointer-events: none; }
   button { margin-top: 10px; padding: 10px 20px; font-size: 16px; }
+  select { margin-top: 10px; font-size: 16px; padding: 5px; }
+  ul { margin-top: 15px; padding-left: 20px; max-width: 400px; width: 90vw; }
+  li { margin-bottom: 4px; }
 </style>
 </head>
 <body>
-<h2>Draw a shape</h2>
-<p id="stateMessage">Press the button to submit</p>
-<p>
-  Shape: 
-  <select id="polygonSelect">
-    <option value="3">Triangle</option>
-    <option value="4" selected>Square</option>
-    <option value="5">Pentagon</option>
-    <option value="6">Hexagon</option>
-    <option value="7">Heptagon</option>
-    <option value="8">Octagon</option>
-  </select>
-</p>
+
+<button id="modeToggle">Shapes</button>
+<select id="polygonSelect"></select>
+
 <p>Score: <span id="scoreFinal">-</span></p>
 
 <div class="canvas-container">
@@ -35,6 +29,9 @@
 
 <button id="submitBtn">Submit / Clear</button>
 
+<h3>Best Scores</h3>
+<ul id="bestScoresList"></ul>
+
 <script>
 const drawCanvas = document.getElementById('drawCanvas');
 const overlayCanvas = document.getElementById('overlayCanvas');
@@ -43,33 +40,31 @@ const overlayCtx = overlayCanvas.getContext('2d');
 
 const scoreFinalEl = document.getElementById('scoreFinal');
 const polygonSelect = document.getElementById('polygonSelect');
-const stateMessage = document.getElementById('stateMessage');
 const submitBtn = document.getElementById('submitBtn');
+const modeToggleBtn = document.getElementById('modeToggle');
+const bestScoresListEl = document.getElementById('bestScoresList');
 
 let userPoints = [];
 let drawing = false;
 let overlayShown = false;
+let mode = 'Shapes'; // 'Shapes' or 'Countries'
+
+// Persistent best scores across mode switches
+const bestScores = {};
 
 // --- Helpers ---
 function getMousePos(e){
   const rect = drawCanvas.getBoundingClientRect();
   const scaleX = drawCanvas.width / rect.width;
   const scaleY = drawCanvas.height / rect.height;
-  return {
-    x: (e.clientX - rect.left) * scaleX,
-    y: (e.clientY - rect.top) * scaleY
-  };
+  return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
 }
 function getTouchPos(touch){
   const rect = drawCanvas.getBoundingClientRect();
   const scaleX = drawCanvas.width / rect.width;
   const scaleY = drawCanvas.height / rect.height;
-  return {
-    x: (touch.clientX - rect.left) * scaleX,
-    y: (touch.clientY - rect.top) * scaleY
-  };
+  return { x: (touch.clientX - rect.left) * scaleX, y: (touch.clientY - rect.top) * scaleY };
 }
-
 function resampleUniform(points,N){
   if(points.length<2) return points.slice();
   let lens=[0], L=0;
@@ -92,7 +87,6 @@ function resampleUniform(points,N){
   }
   return out;
 }
-
 function dist(a,b){ return Math.hypot(a[0]-b[0],a[1]-b[1]); }
 function chamfer(A,B){
   if(A.length===0 || B.length===0) return Infinity;
@@ -157,16 +151,8 @@ function lhsUniform(numSamples, min, max){
   }
   return samples;
 }
-function drawPoints(ctx, points, color, radius=3){
-  ctx.fillStyle=color;
-  for(const [x,y] of points){
-    ctx.beginPath();
-    ctx.arc(x,y,radius,0,2*Math.PI);
-    ctx.fill();
-  }
-}
 
-// --- Generate high-res n-gon ---
+// --- Generate n-gon ---
 function generateNgon(n, center=[128,128], radius=50, pointsPerEdge=100){
   const vertices = [];
   for(let i=0;i<n;i++){
@@ -185,7 +171,62 @@ function generateNgon(n, center=[128,128], radius=50, pointsPerEdge=100){
   return highResPoints;
 }
 
-// --- Drawing ---
+// --- Get shape points ---
+async function getShapePoints(shapeValue){
+  if(mode === 'Shapes'){
+    const polygonMap = { "Triangle":3, "Square":4, "Pentagon":5, "Hexagon":6, "Heptagon":7, "Octagon":8 };
+    if(shapeValue in polygonMap) return generateNgon(polygonMap[shapeValue]);
+    return [];
+  } else if(mode === 'Countries'){
+    try{
+      const res = await fetch(`countries/${shapeValue}.json`);
+      if(res.ok) return await res.json();
+    } catch(e){ console.error("Failed to load country:", e); }
+    return [];
+  }
+}
+
+// --- Populate dropdown ---
+async function populateDropdownByMode(){
+  clearAll();
+  polygonSelect.innerHTML = '';
+  if(mode==='Shapes'){
+    const shapes = ["Triangle","Square","Pentagon","Hexagon","Heptagon","Octagon"];
+    shapes.forEach(s=>{
+      const opt = document.createElement('option');
+      opt.value = s; opt.textContent = s;
+      if(s==='Square') opt.selected = true;
+      polygonSelect.appendChild(opt);
+    });
+    modeToggleBtn.textContent = "Shapes";
+  } else {
+    try{
+      const res = await fetch('countries/list.json');
+      if(!res.ok) throw new Error("Failed to fetch country list");
+      const countries = await res.json();
+      countries.forEach((c,i)=>{
+        const opt = document.createElement('option');
+        opt.value=c; opt.textContent=c;
+        if(i===0) opt.selected = true;
+        polygonSelect.appendChild(opt);
+      });
+      modeToggleBtn.textContent = "Countries";
+    } catch(e){
+      console.error(e);
+      const opt = document.createElement('option');
+      opt.textContent = "Error loading countries";
+      polygonSelect.appendChild(opt);
+    }
+  }
+}
+
+// --- Mode toggle ---
+modeToggleBtn.addEventListener('click', async ()=>{
+  mode = (mode==='Shapes') ? 'Countries' : 'Shapes';
+  await populateDropdownByMode();
+});
+
+// --- Drawing events ---
 drawCanvas.addEventListener('mousedown', e => {
   drawing = true;
   const p = getMousePos(e);
@@ -202,8 +243,6 @@ drawCanvas.addEventListener('mousemove', e => {
 });
 drawCanvas.addEventListener('mouseup', ()=> drawing=false);
 drawCanvas.addEventListener('mouseleave', ()=> drawing=false);
-
-// Touch events
 drawCanvas.addEventListener('touchstart', e => {
   e.preventDefault();
   const touch = e.touches[0];
@@ -226,34 +265,50 @@ drawCanvas.addEventListener('touchend', e => { e.preventDefault(); drawing=false
 
 // --- Clear ---
 function clearAll(){
-  drawCtx.clearRect(0,0,drawCanvas.width, drawCanvas.height);
-  overlayCtx.clearRect(0,0,overlayCanvas.width, overlayCanvas.height);
+  drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);
+  overlayCtx.clearRect(0,0,overlayCanvas.width,overlayCanvas.height);
   userPoints = [];
   drawing = false;
   overlayShown = false;
   scoreFinalEl.textContent="-";
-  stateMessage.textContent = "Press button to submit";
 }
 
-// --- Dropdown change ---
-polygonSelect.addEventListener('change', ()=> clearAll());
+// --- Draw points ---
+function drawPoints(ctx, points, color='orange', size=2){
+  ctx.fillStyle=color;
+  for(const [x,y] of points){
+    ctx.beginPath();
+    ctx.arc(x,y,size,0,2*Math.PI);
+    ctx.fill();
+  }
+}
 
-// --- Button ---
-submitBtn.addEventListener('click', ()=>{
+// --- Update best scores list ---
+function updateBestScoresList(){
+  const scoresArray = Object.entries(bestScores);
+  scoresArray.sort((a,b)=>b[1]-a[1]);
+  bestScoresListEl.innerHTML='';
+  scoresArray.forEach(([name,score])=>{
+    const li = document.createElement('li');
+    li.textContent = `${name}: ${score.toFixed(2)}`;
+    bestScoresListEl.appendChild(li);
+  });
+}
+
+// --- Submit / Clear ---
+async function handleSubmitOrClear(){
   if(!overlayShown){
     if(userPoints.length===0) return;
 
     const N = 40;
     const userResampled = resampleUniform(userPoints,N);
-
-    const n = parseInt(polygonSelect.value);
-    const polyDense = generateNgon(n);
-    const polyResampled = resampleUniform(polyDense,N);
+    const shapeValue = polygonSelect.value;
+    const baseShape = await getShapePoints(shapeValue);
+    const polyResampled = resampleUniform(baseShape,N);
 
     const cUser = centroid(userResampled);
     const baseline = chamfer([cUser], userResampled);
 
-    // Heuristic alignment
     const cPoly = centroid(polyResampled);
     const H_scale = averageRadius(userResampled,cUser)/averageRadius(polyResampled,cPoly);
     const H_tx = cUser[0]-cPoly[0];
@@ -262,7 +317,6 @@ submitBtn.addEventListener('click', ()=>{
     let heuristicAligned = rotateScaleTranslate(polyResampled,0,H_scale,cPoly);
     heuristicAligned = translatePoints(heuristicAligned,H_tx,H_ty);
 
-    // Search
     const NUM_SAMPLES = 10000;
     const txSamples = lhsGaussianSamples(NUM_SAMPLES,0,2);
     const tySamples = lhsGaussianSamples(NUM_SAMPLES,0,2);
@@ -274,7 +328,7 @@ submitBtn.addEventListener('click', ()=>{
     const cHeuristic = centroid(heuristicAligned);
 
     for(let i=0;i<NUM_SAMPLES;i++){
-      const tx = txSamples[i], ty = tySamples[i], theta = thetaSamples[i], s = scaleSamples[i];
+      const tx=txSamples[i], ty=tySamples[i], theta=thetaSamples[i], s=scaleSamples[i];
       let candidate = rotateScaleTranslate(heuristicAligned,theta,s,cHeuristic);
       candidate = translatePoints(candidate,tx,ty);
       const scorePct = (1 - chamfer(userResampled,candidate)/baseline)*100;
@@ -284,22 +338,33 @@ submitBtn.addEventListener('click', ()=>{
       }
     }
 
-    // Apply best to high-res polygon
-    let highResPoly = generateNgon(n);
-    highResPoly = rotateScaleTranslate(highResPoly,0,H_scale,cPoly);
-    highResPoly = translatePoints(highResPoly,H_tx,H_ty);
-    let bestHighRes = rotateScaleTranslate(highResPoly,bestTheta,bestScale,centroid(highResPoly));
-    bestHighRes = translatePoints(bestHighRes,bestTx,bestTy);
-    drawPoints(overlayCtx,bestHighRes,'orange',4);
+    const cBase = centroid(baseShape);
+    let finalHighRes = rotateScaleTranslate(baseShape, bestTheta, bestScale*H_scale, cBase);
+    finalHighRes = translatePoints(finalHighRes, H_tx+bestTx, H_ty+bestTy);
 
+    drawPoints(overlayCtx, finalHighRes,'orange',1);
     scoreFinalEl.textContent = bestScorePct.toFixed(2);
-    stateMessage.textContent = "Press button to clear";
+
+    // Update best scores
+    if(!bestScores[shapeValue] || bestScorePct > bestScores[shapeValue]){
+      bestScores[shapeValue] = bestScorePct;
+      updateBestScoresList();
+    }
 
     overlayShown = true;
   } else {
     clearAll();
   }
+}
+
+// --- Events ---
+submitBtn.addEventListener('click', handleSubmitOrClear);
+window.addEventListener('keydown', async e=>{
+  if(e.key==="Enter"){ e.preventDefault(); await handleSubmitOrClear(); }
 });
+
+// --- Initial populate ---
+populateDropdownByMode();
 </script>
 </body>
 </html>
