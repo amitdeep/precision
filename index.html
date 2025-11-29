@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Precision Draw Game — Updated</title>
+<title>Precision Draw Game — Simplified</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
   :root{--maxw:420px}
@@ -28,9 +28,6 @@
 
 <div class="info">
   <div>Score: <strong id="scoreFinal">-</strong></div>
-  <div>Tx (search): <strong id="bestTx">-</strong></div>
-  <div>Ty (search): <strong id="bestTy">-</strong></div>
-  <div>Scale (search): <strong id="bestScale">-</strong></div>
 </div>
 
 <div class="canvas-container">
@@ -49,10 +46,6 @@ const drawCtx = drawCanvas.getContext('2d');
 const overlayCtx = overlayCanvas.getContext('2d');
 
 const scoreFinalEl = document.getElementById('scoreFinal');
-const bestTxEl = document.getElementById('bestTx');
-const bestTyEl = document.getElementById('bestTy');
-const bestScaleEl = document.getElementById('bestScale');
-
 const polygonSelect = document.getElementById('polygonSelect');
 const submitBtn = document.getElementById('submitBtn');
 const modeToggleBtn = document.getElementById('modeToggle');
@@ -225,9 +218,6 @@ function clearAll(){
   drawing = false;
   overlayShown = false;
   scoreFinalEl.textContent = '-';
-  bestTxEl.textContent = '-';
-  bestTyEl.textContent = '-';
-  bestScaleEl.textContent = '-';
 }
 function updateBestScoresList(){
   const arr = Object.entries(bestScores).sort((a,b)=>b[1]-a[1]);
@@ -276,7 +266,7 @@ async function handleSubmitOrClear(){
     const scaleSamples = lhsGaussianSamples(NUM_SAMPLES, 1, 0.03);
 
     let bestScore = -Infinity;
-    let bestTx=0,bestTy=0,bestTheta=0,bestScale=1;
+    let bestTheta=0,bestScale=1;
     const cHeuristic = centroid(heuristicAligned);
 
     for(let i=0;i<NUM_SAMPLES;i++){
@@ -291,7 +281,8 @@ async function handleSubmitOrClear(){
 
       if(scoreProxy > bestScore){
         bestScore = scoreProxy;
-        bestTx=tx; bestTy=ty; bestTheta=theta; bestScale=s;
+        bestTheta = theta; 
+        bestScale = s;
       }
     }
 
@@ -299,7 +290,7 @@ async function handleSubmitOrClear(){
     const cBase = centroid(baseShape);
     const combinedScale = H_scale * bestScale;
     let finalHighRes = rotateScaleTranslate(baseShape, bestTheta, combinedScale, cBase);
-    finalHighRes = translatePoints(finalHighRes, H_tx + bestTx, H_ty + bestTy);
+    finalHighRes = translatePoints(finalHighRes, H_tx, H_ty);
 
     const rawChamferFinal = chamfer(userResampled, finalHighRes);
     let scorePct = (1 - rawChamferFinal / combinedScale / baseline) * 100;
@@ -310,11 +301,7 @@ async function handleSubmitOrClear(){
     drawPoints(overlayCtx, finalHighRes, 'orange', 1);
     overlayCtx.globalAlpha = 1.0;
 
-    // DISPLAY only search contribution
     scoreFinalEl.textContent = scorePct.toFixed(2);
-    bestTxEl.textContent = bestTx.toFixed(2);
-    bestTyEl.textContent = bestTy.toFixed(2);
-    bestScaleEl.textContent = bestScale.toFixed(4);
 
     if(!bestScores[shapeValue] || scorePct > bestScores[shapeValue]){
       bestScores[shapeValue] = scorePct;
