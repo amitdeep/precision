@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Precision</title>
+<style>
+  body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding-top: 20px; }
+  .canvas-container { position: relative; width: 256px; height: 256px; }
+  canvas { border: 1px solid black; }
+  #overlayCanvas { position: absolute; left: 0; top: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<h2>Draw a shape</h2>
+<p id="stateMessage">Press Enter to submit</p>
+<p>
+  Shape: 
+  <select id="polygonSelect">
+    <option value="3">Triangle</option>
+    <option value="4" selected>Square</option>
+    <option value="5">Pentagon</option>
+    <option value="6">Hexagon</option>
+    <option value="7">Heptagon</option>
+    <option value="8">Octagon</option>
+  </select>
+</p>
+<p>Score: <span id="scoreFinal">-</span></p>
+
+<div class="canvas-container">
+  <canvas id="drawCanvas" width="256" height="256"></canvas>
+  <canvas id="overlayCanvas" width="256" height="256"></canvas>
+</div>
+
+<script>
+const drawCanvas = document.getElementById('drawCanvas');
+const overlayCanvas = document.getElementById('overlayCanvas');
+const drawCtx = drawCanvas.getContext('2d');
+const overlayCtx = overlayCanvas.getContext('2d');
+
+const scoreFinalEl = document.getElementById('scoreFinal');
+const polygonSelect = document.getElementById('polygonSelect');
+const stateMessage = document.getElementById('stateMessage');
+
+let userPoints = [];
+let drawing = false;
+let overlayShown = false;
+
+// --- Generate high-res n-gon ---
+function generateNgon(n, center=[150,150], radius=50, pointsPerEdge=100){
+  const vertices = [];
+  for(let i=0;i<n;i++){
+    const angle = 2*Math.PI*i/n - Math.PI/2; // rotate to start top
+    vertices.push([center[0]+radius*Math.cos(angle), center[1]+radius*Math.sin(angle)]);
+  }
+  const highResPoints = [];
+  for(let i=0;i<n;i++){
+    const [x0,y0] = vertices[i];
+    const [x1,y1] = vertices[(i+1)%n];
+    for(let j=0;j<pointsPerEdge;j++){
+      const t = j/(pointsPerEdge-1);
+      highResPoints.push([x0 + t*(x1-x0), y0 + t*(y1-y0)]);
+    }
+  }
+  return highResPoints;
+}
+
+// --- Drawing ---
+drawCanvas.addEventListener('mousedown', e => {
+  drawing = true;
+  const p = getPos(e);
+  drawCtx.beginPath();
+  drawCtx.moveTo(p.x,p.y);
+  userPoints.push([p.x,p.y]);
+});
+drawCanvas.addEventListener('mousemove', e => {
+  if(!drawing) return;
+  const p = getPos(e);
+  drawCtx.lineTo(p.x,p.y);
+  drawCtx.stroke();
+  userPoints.push([p.x,p.y]);
+});
+drawCanvas.addEventListener('mouseup', ()=> drawing=false);
+drawCanvas.addEventListener('mouseleave', ()=> drawing=false);
+
+function getPos(e){
+  const r = drawCanvas.getBoundingClientRect();
+  return {x:e.clientX - r.left, y:e.clientY - r.top};
+}
+
+// --- Helpers ---
+function resampleUniform(points,N){
+  if(points.length<2) return points.slice();
+  let lens=[0], L=0;
+  for(let i=1;i<points.length;i++){
+    L += Math.hypot(points[i][0]-points[i-1][0], points[i][1]-points[i-1][1]);
+    lens.push(L);
+  }
+  let out=[];
+  for(let i=0;i<N;i++){
+    let t = L*(i/(N-1));
+    let idx = lens.findIndex(v=>v>=t);
+    if(idx<=0) out.push(points[0]);
+    else {
+      let t0=lens[idx-1], t1=lens[idx];
+      let ratio = (t-t0)/(t1-t0);
+      const [x0,y0] = points[idx-1];
+      const [x1,y1] = points[idx];
+      out.push([x0 + ratio*(x1-x0), y0 + ratio*(y1-y0)]);
+    }
+  }
+  return out;
+}
+
+function dist(a,b){ return Math.hypot(a[0]-b[0],a[1]-b[1]); }
+function chamfer(A,B){
+  if(A.length===0 || B.length===0) return Infinity;
+  const avgMin = (from,to)=>{
+    let total=0;
+    for(const p of from){
+      let best=Infinity;
+      for(const q of to){ const d=dist(p,q); if(d<best) best=d; }
+      total += best;
+    }
+    return total/from.length;
+  };
+  return 0.5*(avgMin(A,B)+avgMin(B,A));
+}
+
+function centroid(points){
+  const N = points.length;
+  let sumX=0,sumY=0;
+  for(const [x,y] of points){ sumX+=x; sumY+=y; }
+  return [sumX/N, sumY/N];
+}
+
+function averageRadius(points, c){
+  let total=0;
+  for(const [x,y] of points){
+    total += Math.hypot(x-c[0], y-c[1]);
+  }
+  return total/points.length;
+}
+
+function rotateScaleTranslate(points, angle, scale, c){
+  const cosA = Math.cos(angle), sinA = Math.sin(angle);
+  return points.map(([x,y])=>{
+    const dx = x-c[0], dy = y-c[1];
+    const xr = cosA*dx - sinA*dy;
+    const yr = sinA*dx + cosA*dy;
+    return [c[0] + scale*xr, c[1] + scale*yr];
+  });
+}
+
+function translatePoints(points, tx, ty){
+  return points.map(([x,y])=>[x+tx, y+ty]);
+}
+
+function erfinv(x){
+  let a = 0.147;
+  let ln = Math.log(1-x*x);
+  let s = (2/(Math.PI*a) + ln/2);
+  return (x<0?-1:1) * Math.sqrt(Math.sqrt(s*s - ln/a) - s);
+}
+function normInv(p){ return Math.sqrt(2)*erfinv(2*p-1); }
+
+function lhsGaussianSamples(numSamples, mean=0, std=1){
+  let uniformSamples = [];
+  const interval = 1/numSamples;
+  for(let i=0;i<numSamples;i++) uniformSamples.push((i+Math.random())*interval);
+  for(let i=uniformSamples.length-1;i>0;i--){
+    const j = Math.floor(Math.random()* (i+1));
+    [uniformSamples[i], uniformSamples[j]] = [uniformSamples[j], uniformSamples[i]];
+  }
+  return uniformSamples.map(u => normInv(u)*std + mean);
+}
+function lhsUniform(numSamples, min, max){
+  const interval = (max-min)/numSamples;
+  let samples = [];
+  for(let i=0;i<numSamples;i++) samples.push(min + interval*i + Math.random()*interval);
+  for(let i=samples.length-1;i>0;i--){
+    const j = Math.floor(Math.random()* (i+1));
+    [samples[i], samples[j]] = [samples[j], samples[i]];
+  }
+  return samples;
+}
+
+function drawPoints(ctx, points, color, radius=3){
+  ctx.fillStyle=color;
+  for(const [x,y] of points){
+    ctx.beginPath();
+    ctx.arc(x,y,radius,0,2*Math.PI);
+    ctx.fill();
+  }
+}
+
+// --- Clear function ---
+function clearAll(){
+  drawCtx.clearRect(0,0,drawCanvas.width, drawCanvas.height);
+  overlayCtx.clearRect(0,0,overlayCanvas.width, overlayCanvas.height);
+  userPoints = [];
+  drawing = false;
+  overlayShown = false;
+  scoreFinalEl.textContent="-";
+  stateMessage.textContent = "Press Enter to submit";
+}
+
+// --- Dropdown change listener ---
+polygonSelect.addEventListener('change', ()=>{
+  clearAll();
+});
+
+// --- ENTER key ---
+window.addEventListener('keydown', e=>{
+  if(e.key!=="Enter") return;
+
+  if(!overlayShown){
+    if(userPoints.length===0) return;
+
+    const N = 40;
+    const userResampled = resampleUniform(userPoints,N);
+
+    const n = parseInt(polygonSelect.value);
+    const polyDense = generateNgon(n);
+    const polyResampled = resampleUniform(polyDense,N);
+
+    const cUser = centroid(userResampled);
+    const baseline = chamfer([cUser], userResampled);
+
+    // Heuristic alignment
+    const cPoly = centroid(polyResampled);
+    const H_scale = averageRadius(userResampled,cUser)/averageRadius(polyResampled,cPoly);
+    const H_tx = cUser[0]-cPoly[0];
+    const H_ty = cUser[1]-cPoly[1];
+
+    let heuristicAligned = rotateScaleTranslate(polyResampled,0,H_scale,cPoly);
+    heuristicAligned = translatePoints(heuristicAligned,H_tx,H_ty);
+
+    // --- Search for best alignment ---
+    const NUM_SAMPLES = 10000;
+    const txSamples = lhsGaussianSamples(NUM_SAMPLES,0,2);
+    const tySamples = lhsGaussianSamples(NUM_SAMPLES,0,2);
+    const scaleSamples = lhsGaussianSamples(NUM_SAMPLES,1,0.03);
+    const thetaSamples = lhsUniform(NUM_SAMPLES,0,2*Math.PI);
+
+    let bestScorePct = -Infinity;
+    let bestTx=0, bestTy=0, bestTheta=0, bestScale=0;
+    const cHeuristic = centroid(heuristicAligned);
+
+    for(let i=0;i<NUM_SAMPLES;i++){
+      const tx = txSamples[i], ty = tySamples[i], theta = thetaSamples[i], s = scaleSamples[i];
+      let candidate = rotateScaleTranslate(heuristicAligned,theta,s,cHeuristic);
+      candidate = translatePoints(candidate,tx,ty);
+      const scorePct = (1 - chamfer(userResampled,candidate)/baseline)*100;
+      if(scorePct>bestScorePct){
+        bestScorePct = scorePct;
+        bestTx=tx; bestTy=ty; bestTheta=theta; bestScale=s;
+      }
+    }
+
+    // Apply best to high-res polygon
+    let highResPoly = generateNgon(n);
+    highResPoly = rotateScaleTranslate(highResPoly,0,H_scale,cPoly);
+    highResPoly = translatePoints(highResPoly,H_tx,H_ty);
+    let bestHighRes = rotateScaleTranslate(highResPoly,bestTheta,bestScale,centroid(highResPoly));
+    bestHighRes = translatePoints(bestHighRes,bestTx,bestTy);
+    drawPoints(overlayCtx,bestHighRes,'orange',2);
+
+    // --- Display final score ---
+    scoreFinalEl.textContent = bestScorePct.toFixed(2);
+    stateMessage.textContent = "Press Enter to clear";
+
+    overlayShown = true;
+
+  } else {
+    clearAll();
+  }
+});
+</script>
+</body>
+</html>
