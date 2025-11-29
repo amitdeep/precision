@@ -17,7 +17,7 @@
 </head>
 <body>
 
-<button id="modeToggle">Shapes</button>
+<button id="modeToggle">Switch to Shapes</button>
 <select id="polygonSelect"></select>
 
 <p>Score: <span id="scoreFinal">-</span></p>
@@ -47,7 +47,7 @@ const bestScoresListEl = document.getElementById('bestScoresList');
 let userPoints = [];
 let drawing = false;
 let overlayShown = false;
-let mode = 'Shapes'; // 'Shapes' or 'Countries'
+let mode = 'Countries'; // Default to countries
 
 // Persistent best scores across mode switches
 const bestScores = {};
@@ -198,7 +198,7 @@ async function populateDropdownByMode(){
       if(s==='Square') opt.selected = true;
       polygonSelect.appendChild(opt);
     });
-    modeToggleBtn.textContent = "Shapes";
+    modeToggleBtn.textContent = "Switch to Countries";
   } else {
     try{
       const res = await fetch('countries/list.json');
@@ -206,11 +206,12 @@ async function populateDropdownByMode(){
       const countries = await res.json();
       countries.forEach((c,i)=>{
         const opt = document.createElement('option');
-        opt.value=c; opt.textContent=c;
-        if(i===0) opt.selected = true;
+        opt.value=c;
+        opt.textContent=c.replace(/_/g,' ');
+        if(c==='Australia') opt.selected = true;
         polygonSelect.appendChild(opt);
       });
-      modeToggleBtn.textContent = "Countries";
+      modeToggleBtn.textContent = "Switch to Shapes";
     } catch(e){
       console.error(e);
       const opt = document.createElement('option');
