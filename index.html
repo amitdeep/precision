@@ -47,9 +47,7 @@ const bestScoresListEl = document.getElementById('bestScoresList');
 let userPoints = [];
 let drawing = false;
 let overlayShown = false;
-let mode = 'Countries'; // Default to countries
-
-// Persistent best scores across mode switches
+let mode = 'Countries';
 const bestScores = {};
 
 // --- Helpers ---
@@ -152,34 +150,38 @@ function lhsUniform(numSamples, min, max){
   return samples;
 }
 
-// --- Generate n-gon ---
-function generateNgon(n, center=[128,128], radius=50, pointsPerEdge=100){
+// --- Generate n-gon or circle with fixed total points ---
+function generateNgon(n, center=[128,128], radius=50, totalPoints=2000){
   const vertices = [];
   for(let i=0;i<n;i++){
-    const angle = 2*Math.PI*i/n - Math.PI/2; 
+    const angle = 2*Math.PI*i/n - Math.PI/2;
     vertices.push([center[0]+radius*Math.cos(angle), center[1]+radius*Math.sin(angle)]);
   }
-  const highResPoints = [];
+  const points = [];
   for(let i=0;i<n;i++){
     const [x0,y0] = vertices[i];
     const [x1,y1] = vertices[(i+1)%n];
-    for(let j=0;j<pointsPerEdge;j++){
-      const t = j/(pointsPerEdge-1);
-      highResPoints.push([x0 + t*(x1-x0), y0 + t*(y1-y0)]);
+    const pointsOnEdge = Math.ceil(totalPoints/n);
+    for(let j=0;j<pointsOnEdge;j++){
+      const t = j/(pointsOnEdge-1);
+      points.push([x0 + t*(x1-x0), y0 + t*(y1-y0)]);
     }
   }
-  return highResPoints;
+  return points.slice(0,totalPoints);
 }
 
 // --- Get shape points ---
 async function getShapePoints(shapeValue){
   if(mode === 'Shapes'){
-    const polygonMap = { "Triangle":3, "Square":4, "Pentagon":5, "Hexagon":6, "Heptagon":7, "Octagon":8 };
-    if(shapeValue in polygonMap) return generateNgon(polygonMap[shapeValue]);
+    const polygonMap = { "Circle":100, "Triangle":3, "Square":4, "Pentagon":5, "Hexagon":6, "Heptagon":7, "Octagon":8 };
+    if(shapeValue in polygonMap){
+      const n = shapeValue === "Circle" ? 100 : polygonMap[shapeValue];
+      return generateNgon(n); // fixed total points
+    }
     return [];
   } else if(mode === 'Countries'){
     try{
-      const filename = shapeValue.replace(/ /g, "_");  // <-- replace spaces with underscores
+      const filename = shapeValue.replace(/ /g, "_");
       const res = await fetch(`countries/${filename}.json`);
       if(res.ok) return await res.json();
     } catch(e){ console.error("Failed to load country:", e); }
@@ -187,17 +189,16 @@ async function getShapePoints(shapeValue){
   }
 }
 
-
 // --- Populate dropdown ---
 async function populateDropdownByMode(){
   clearAll();
   polygonSelect.innerHTML = '';
   if(mode==='Shapes'){
-    const shapes = ["Triangle","Square","Pentagon","Hexagon","Heptagon","Octagon"];
+    const shapes = ["Circle","Triangle","Square","Pentagon","Hexagon","Heptagon","Octagon"];
     shapes.forEach(s=>{
       const opt = document.createElement('option');
       opt.value = s; opt.textContent = s;
-      if(s==='Square') opt.selected = true;
+      if(s==='Circle') opt.selected = true;
       polygonSelect.appendChild(opt);
     });
     modeToggleBtn.textContent = "Switch to Countries";
@@ -311,7 +312,6 @@ async function handleSubmitOrClear(){
     drawPoints(overlayCtx, finalHighRes,'orange',1);
     scoreFinalEl.textContent = bestScorePct.toFixed(2);
 
-    // Update best scores
     if(!bestScores[shapeValue] || bestScorePct > bestScores[shapeValue]){
       bestScores[shapeValue] = bestScorePct;
       updateBestScoresList();
@@ -323,7 +323,7 @@ async function handleSubmitOrClear(){
   }
 }
 
-// --- Drawing events (with overlay lock) ---
+// --- Drawing events ---
 drawCanvas.addEventListener('mousedown', e => {
   if(overlayShown) return;
   drawing = true;
@@ -368,9 +368,8 @@ submitBtn.addEventListener('click', handleSubmitOrClear);
 window.addEventListener('keydown', async e=>{
   if(e.key==="Enter"){ e.preventDefault(); await handleSubmitOrClear(); }
 });
-polygonSelect.addEventListener('change', clearAll); // clear board when dropdown changes
+polygonSelect.addEventListener('change', clearAll);
 
-// --- Initial populate ---
 populateDropdownByMode();
 </script>
 </body>
