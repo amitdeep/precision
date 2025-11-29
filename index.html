@@ -179,12 +179,14 @@ async function getShapePoints(shapeValue){
     return [];
   } else if(mode === 'Countries'){
     try{
-      const res = await fetch(`countries/${shapeValue}.json`);
+      const filename = shapeValue.replace(/ /g, "_");  // <-- replace spaces with underscores
+      const res = await fetch(`countries/${filename}.json`);
       if(res.ok) return await res.json();
     } catch(e){ console.error("Failed to load country:", e); }
     return [];
   }
 }
+
 
 // --- Populate dropdown ---
 async function populateDropdownByMode(){
@@ -226,43 +228,6 @@ modeToggleBtn.addEventListener('click', async ()=>{
   mode = (mode==='Shapes') ? 'Countries' : 'Shapes';
   await populateDropdownByMode();
 });
-
-// --- Drawing events ---
-drawCanvas.addEventListener('mousedown', e => {
-  drawing = true;
-  const p = getMousePos(e);
-  drawCtx.beginPath();
-  drawCtx.moveTo(p.x,p.y);
-  userPoints.push([p.x,p.y]);
-});
-drawCanvas.addEventListener('mousemove', e => {
-  if(!drawing) return;
-  const p = getMousePos(e);
-  drawCtx.lineTo(p.x,p.y);
-  drawCtx.stroke();
-  userPoints.push([p.x,p.y]);
-});
-drawCanvas.addEventListener('mouseup', ()=> drawing=false);
-drawCanvas.addEventListener('mouseleave', ()=> drawing=false);
-drawCanvas.addEventListener('touchstart', e => {
-  e.preventDefault();
-  const touch = e.touches[0];
-  drawing = true;
-  const p = getTouchPos(touch);
-  drawCtx.beginPath();
-  drawCtx.moveTo(p.x,p.y);
-  userPoints.push([p.x,p.y]);
-});
-drawCanvas.addEventListener('touchmove', e => {
-  e.preventDefault();
-  if(!drawing) return;
-  const touch = e.touches[0];
-  const p = getTouchPos(touch);
-  drawCtx.lineTo(p.x,p.y);
-  drawCtx.stroke();
-  userPoints.push([p.x,p.y]);
-});
-drawCanvas.addEventListener('touchend', e => { e.preventDefault(); drawing=false; });
 
 // --- Clear ---
 function clearAll(){
@@ -358,11 +323,52 @@ async function handleSubmitOrClear(){
   }
 }
 
+// --- Drawing events (with overlay lock) ---
+drawCanvas.addEventListener('mousedown', e => {
+  if(overlayShown) return;
+  drawing = true;
+  const p = getMousePos(e);
+  drawCtx.beginPath();
+  drawCtx.moveTo(p.x,p.y);
+  userPoints.push([p.x,p.y]);
+});
+drawCanvas.addEventListener('mousemove', e => {
+  if(!drawing || overlayShown) return;
+  const p = getMousePos(e);
+  drawCtx.lineTo(p.x,p.y);
+  drawCtx.stroke();
+  userPoints.push([p.x,p.y]);
+});
+drawCanvas.addEventListener('mouseup', ()=> drawing=false);
+drawCanvas.addEventListener('mouseleave', ()=> drawing=false);
+
+drawCanvas.addEventListener('touchstart', e => {
+  if(overlayShown) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  drawing = true;
+  const p = getTouchPos(touch);
+  drawCtx.beginPath();
+  drawCtx.moveTo(p.x,p.y);
+  userPoints.push([p.x,p.y]);
+});
+drawCanvas.addEventListener('touchmove', e => {
+  if(!drawing || overlayShown) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  const p = getTouchPos(touch);
+  drawCtx.lineTo(p.x,p.y);
+  drawCtx.stroke();
+  userPoints.push([p.x,p.y]);
+});
+drawCanvas.addEventListener('touchend', e => { e.preventDefault(); drawing=false; });
+
 // --- Events ---
 submitBtn.addEventListener('click', handleSubmitOrClear);
 window.addEventListener('keydown', async e=>{
   if(e.key==="Enter"){ e.preventDefault(); await handleSubmitOrClear(); }
 });
+polygonSelect.addEventListener('change', clearAll); // clear board when dropdown changes
 
 // --- Initial populate ---
 populateDropdownByMode();
