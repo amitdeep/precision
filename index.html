@@ -2,41 +2,246 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Precision Draw Game — Simplified</title>
+<title>Precision</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-  :root{--maxw:420px}
-  body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 18px; gap:8px; }
-  .controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center}
-  .canvas-container { position: relative; width: 90vw; max-width: var(--maxw); margin-top: 6px; }
-  canvas { border: 1px solid #111; width: 100%; height: auto; touch-action: none; display:block }
-  #overlayCanvas { position: absolute; left: 0; top: 0; pointer-events: none; }
-  button { padding: 8px 12px; font-size:14px; border-radius:6px }
-  select { padding:6px 8px; font-size:14px }
-  .info { max-width:var(--maxw); width:90vw; display:flex;justify-content:center; gap:12px; font-size:15px; margin-top:6px; flex-wrap:wrap }
-  ul { margin-top: 8px; padding-left: 20px; max-width: var(--maxw); width: 90vw; }
-  li { margin-bottom: 4px; }
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background: #f7f7f5;
+    color: #121212;
+    line-height: 1.5;
+    padding: 24px 16px;
+    font-size: 14px;
+  }
+
+  .container {
+    max-width: 920px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .main-content {
+    background: #ffffff;
+    padding: 24px;
+    border: 1px solid #dcdcdc;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+
+  .sidebar {
+    background: #ffffff;
+    padding: 20px;
+    border: 1px solid #dcdcdc;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+
+  h1 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    color: #121212;
+    letter-spacing: -0.3px;
+    line-height: 1.2;
+  }
+
+  h2 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 14px;
+    color: #121212;
+    border-bottom: 2px solid #121212;
+    padding-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  button {
+    padding: 10px 18px;
+    font-size: 13px;
+    border: 1px solid #121212;
+    background: #ffffff;
+    color: #121212;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s ease;
+    font-weight: 500;
+  }
+
+  button:hover {
+    background: #121212;
+    color: #ffffff;
+  }
+
+  button:active {
+    transform: scale(0.98);
+  }
+
+  select {
+    padding: 10px 14px;
+    font-size: 13px;
+    border: 1px solid #121212;
+    background: #ffffff;
+    font-family: inherit;
+    min-width: 160px;
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+  }
+
+  select:hover {
+    border-color: #666;
+  }
+
+  select:focus {
+    outline: none;
+    border-color: #121212;
+  }
+
+  .score-display {
+    margin-bottom: 24px;
+    padding: 16px 20px;
+    background: #fafafa;
+    border-left: 3px solid #121212;
+  }
+
+  .score-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #666;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+
+  .score-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #121212;
+    line-height: 1.2;
+  }
+
+  .canvas-container {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto;
+    border: 2px solid #121212;
+    background: #ffffff;
+  }
+
+  canvas {
+    width: 100%;
+    height: auto;
+    touch-action: none;
+    display: block;
+  }
+
+  #overlayCanvas {
+    position: absolute;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+  }
+
+  #bestScoresList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  #bestScoresList li {
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 13px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: padding-left 0.15s ease;
+  }
+
+  #bestScoresList li:hover {
+    padding-left: 4px;
+  }
+
+  #bestScoresList li:last-child {
+    border-bottom: none;
+  }
+
+  .score-item-name {
+    color: #121212;
+    font-weight: 400;
+  }
+
+  .score-item-value {
+    font-weight: 700;
+    color: #121212;
+    font-size: 14px;
+  }
+
+  @media (max-width: 768px) {
+    .container {
+      grid-template-columns: 1fr;
+    }
+
+    body {
+      padding: 12px;
+    }
+
+    .main-content, .sidebar {
+      padding: 16px;
+    }
+
+    h1 {
+      font-size: 24px;
+    }
+  }
 </style>
 </head>
 <body>
 
-<div class="controls">
-  <button id="modeToggle">Switch to Shapes</button>
-  <select id="polygonSelect" aria-label="shape or country"></select>
-  <button id="submitBtn">Submit / Clear</button>
-</div>
+<div class="container">
+  <div class="main-content">
+    <h1>Precision</h1>
 
-<div class="info">
-  <div>Score: <strong id="scoreFinal">-</strong></div>
-</div>
+    <div class="controls">
+      <button id="modeToggle">Switch to Shapes</button>
+      <select id="polygonSelect" aria-label="shape or country"></select>
+      <button id="submitBtn">Submit / Clear</button>
+    </div>
 
-<div class="canvas-container">
-  <canvas id="drawCanvas" width="384" height="384"></canvas>
-  <canvas id="overlayCanvas" width="384" height="384"></canvas>
-</div>
+    <div class="score-display">
+      <div class="score-label">Score</div>
+      <div class="score-value" id="scoreFinal">-</div>
+    </div>
 
-<h3 style="margin:6px 0">Best Scores</h3>
-<ul id="bestScoresList"></ul>
+    <div class="canvas-container">
+      <canvas id="drawCanvas" width="384" height="384"></canvas>
+      <canvas id="overlayCanvas" width="384" height="384"></canvas>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <h2>Best Scores</h2>
+    <ul id="bestScoresList"></ul>
+  </div>
+</div>
 
 <script>
 // ----------------- Elements -----------------
@@ -44,6 +249,12 @@ const drawCanvas = document.getElementById('drawCanvas');
 const overlayCanvas = document.getElementById('overlayCanvas');
 const drawCtx = drawCanvas.getContext('2d');
 const overlayCtx = overlayCanvas.getContext('2d');
+
+// Set up drawing styles
+drawCtx.strokeStyle = '#202122';
+drawCtx.lineWidth = 2;
+drawCtx.lineCap = 'round';
+drawCtx.lineJoin = 'round';
 
 const scoreFinalEl = document.getElementById('scoreFinal');
 const polygonSelect = document.getElementById('polygonSelect');
@@ -97,14 +308,86 @@ function resampleUniform(points,N){
   return out;
 }
 
-function dist(a, b) { return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]); }
+// Resample by iteratively choosing the furthest remaining point
+function resampleFurthest(points, N){
+  if(points.length <= N) return points.slice();
+  if(points.length === 0) return [];
+  
+  const selected = [];
+  const remaining = points.map((p, i) => ({ point: p, index: i }));
+  
+  // Start with first point
+  selected.push(remaining[0].point);
+  remaining.splice(0, 1);
+  
+  // Iteratively add the point that is furthest from all selected points
+  while(selected.length < N && remaining.length > 0){
+    let maxMinDist = -1;
+    let bestIdx = 0;
+    
+    for(let i = 0; i < remaining.length; i++){
+      // Find minimum squared distance from this point to any selected point
+      let minDistSq = Infinity;
+      for(const selectedPoint of selected){
+        const dSq = distSquared(remaining[i].point, selectedPoint);
+        if(dSq < minDistSq) minDistSq = dSq;
+      }
+      
+      // Keep track of the point with maximum minimum distance
+      if(minDistSq > maxMinDist){
+        maxMinDist = minDistSq;
+        bestIdx = i;
+      }
+    }
+    
+    selected.push(remaining[bestIdx].point);
+    remaining.splice(bestIdx, 1);
+  }
+  
+  return selected;
+}
+
+// Squared Euclidean distance (for search/minimization, avoids sqrt)
+function distSquared(a, b) {
+  const dx = a[0] - b[0];
+  const dy = a[1] - b[1];
+  return dx * dx + dy * dy;
+}
+
+// Euclidean distance (for final output)
+function distEuclidean(a, b) {
+  return Math.sqrt(distSquared(a, b));
+}
+
+// Chamfer distance using squared distance (for search/minimization)
+function chamferSquared(A, B){
+  if(!A.length || !B.length) return Infinity;
+  const avgMin = (from,to)=>{
+    let total=0;
+    for(const p of from){
+      let best=Infinity;
+      for(const q of to){ 
+        const d = distSquared(p,q); 
+        if(d<best) best=d; 
+      }
+      total += best;
+    }
+    return total/from.length;
+  };
+  return 0.5*(avgMin(A,B) + avgMin(B,A));
+}
+
+// Chamfer distance using Euclidean distance (for final output)
 function chamfer(A,B){
   if(!A.length || !B.length) return Infinity;
   const avgMin = (from,to)=>{
     let total=0;
     for(const p of from){
       let best=Infinity;
-      for(const q of to){ const d=dist(p,q); if(d<best) best=d; }
+      for(const q of to){ 
+        const d = distEuclidean(p,q); 
+        if(d<best) best=d; 
+      }
       total += best;
     }
     return total/from.length;
@@ -113,58 +396,99 @@ function chamfer(A,B){
 }
 
 function centroid(points){
+  if(!points.length) return [0, 0];
   let sx=0, sy=0;
   for(const [x,y] of points){ sx+=x; sy+=y; }
   return [sx/points.length, sy/points.length];
 }
 
 function averageRadius(points, c){
+  if(!points.length) return 1;
   let total=0; 
   for(const [x,y] of points) total += Math.hypot(x-c[0], y-c[1]);
   return total/(points.length||1);
 }
 
-function rotateScaleTranslate(points, angle, scale, c){
-  const cosA = Math.cos(angle), sinA = Math.sin(angle);
-  return points.map(([x,y])=>{
-    const dx = x - c[0], dy = y - c[1];
-    const xr = cosA*dx - sinA*dy;
-    const yr = sinA*dx + cosA*dy;
-    return [ c[0] + scale*xr, c[1] + scale*yr ];
-  });
-}
-function translatePoints(points, tx, ty){
-  return points.map(([x,y])=>[x+tx, y+ty]);
+// Transformation object: stores centroid and radius for normalization
+function createTransform(centroid, radius){
+  return { centroid, radius };
 }
 
-function erfinv(x){
-  const a = 0.147;
-  const ln = Math.log(1 - x*x);
-  const s = (2/(Math.PI*a) + ln/2);
-  return (x<0 ? -1 : 1) * Math.sqrt( Math.sqrt(s*s - ln/a) - s );
+// Apply transformation: normalize points
+function applyTransform(points, transform){
+  if(!points.length || !transform) return [];
+  const { centroid: c, radius: r } = transform;
+  if(r === 0) return points.map(() => [0, 0]);
+  return points.map(([x,y]) => [(x - c[0]) / r, (y - c[1]) / r]);
 }
-function normInv(p){ return Math.sqrt(2)*erfinv(2*p-1); }
-function lhsGaussianSamples(numSamples, mean=0, std=1){
-  let uniform = [];
-  const interval = 1/numSamples;
-  for(let i=0;i<numSamples;i++) uniform.push( (i + Math.random())*interval );
-  for(let i=uniform.length-1;i>0;i--){
-    const j = Math.floor(Math.random()*(i+1));
-    [uniform[i], uniform[j]] = [uniform[j], uniform[i]];
-  }
-  return uniform.map(u => normInv(u)*std + mean);
+
+// Invert transformation: denormalize points
+function invertTransform(points, transform){
+  if(!points.length || !transform) return [];
+  const { centroid: c, radius: r } = transform;
+  return points.map(([x,y]) => [c[0] + r * x, c[1] + r * y]);
 }
-function lhsUniform(numSamples, min, max){
-  const interval = (max-min)/numSamples; 
-  let s=[];
-  for(let i=0;i<numSamples;i++)
-    s.push(min + interval*i + Math.random()*interval);
-  for(let i=s.length-1;i>0;i--){
-    const j = Math.floor(Math.random()*(i+1));
-    [s[i], s[j]] = [s[j], s[i]];
-  }
-  return s;
+
+// Normalise points and return both normalized points and transformation
+function normalise(points){
+  if(!points.length) return { normalizedPoints: [], transform: createTransform([0, 0], 1) };
+  const c = centroid(points);
+  const r = averageRadius(points, c);
+  const transform = createTransform(c, r);
+  const normalizedPoints = applyTransform(points, transform);
+  return { normalizedPoints, transform };
 }
+
+// Transformation S: rotation (around centroid/origin), translation, dilation
+// Returns transformation object: { theta, tx, ty, dilation }
+function createSTransform(theta, tx, ty, dilation){
+  return { theta, tx, ty, dilation };
+}
+
+// Apply transformation S to normalized points
+// S: rotation around origin, then dilation, then translation
+function applySTransform(points, sTransform){
+  if(!points.length || !sTransform) return [];
+  const { theta, tx, ty, dilation } = sTransform;
+  const cosA = Math.cos(theta);
+  const sinA = Math.sin(theta);
+  
+  return points.map(([x, y]) => {
+    // Rotate around origin
+    const xr = cosA * x - sinA * y;
+    const yr = sinA * x + cosA * y;
+    // Apply dilation
+    const xd = dilation * xr;
+    const yd = dilation * yr;
+    // Apply translation
+    return [xd + tx, yd + ty];
+  });
+}
+
+// Invert transformation S
+function invertSTransform(points, sTransform){
+  if(!points.length || !sTransform) return [];
+  const { theta, tx, ty, dilation } = sTransform;
+  if(dilation === 0) return points.map(() => [0, 0]);
+  
+  const cosA = Math.cos(-theta); // Inverse rotation
+  const sinA = Math.sin(-theta);
+  const invDilation = 1 / dilation;
+  
+  return points.map(([x, y]) => {
+    // Undo translation
+    const xt = x - tx;
+    const yt = y - ty;
+    // Undo dilation
+    const xd = invDilation * xt;
+    const yd = invDilation * yt;
+    // Undo rotation
+    const xr = cosA * xd - sinA * yd;
+    const yr = sinA * xd + cosA * yd;
+    return [xr, yr];
+  });
+}
+
 
 function generateNgon(n, center=[192,192], radius=80, totalPoints=2000){
   const vertices = [];
@@ -220,11 +544,18 @@ function clearAll(){
   scoreFinalEl.textContent = '-';
 }
 function updateBestScoresList(){
-  const arr = Object.entries(bestScores).sort((a,b)=>b[1]-a[1]);
+  const arr = Object.entries(bestScores).sort((a,b)=>b[1]-a[1]); // Higher normalized score is better
   bestScoresListEl.innerHTML = '';
   for(const [k,v] of arr){
     const li=document.createElement('li');
-    li.textContent = `${k}: ${v.toFixed(2)}`;
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'score-item-name';
+    nameSpan.textContent = k.replace(/_/g, ' ');
+    const valueSpan = document.createElement('span');
+    valueSpan.className = 'score-item-value';
+    valueSpan.textContent = v.toFixed(2);
+    li.appendChild(nameSpan);
+    li.appendChild(valueSpan);
     bestScoresListEl.appendChild(li);
   }
 }
@@ -234,77 +565,162 @@ async function handleSubmitOrClear(){
   if(!overlayShown){
     if(userPoints.length<2) return;
 
-    const N = 40;
-    const userResampled = resampleUniform(userPoints, N);
-
+    // U = user input shape, T = true shape
+    const U = userPoints;
     const shapeValue = polygonSelect.value;
-    const baseShape = await getShapePoints(shapeValue);
-    if(!baseShape.length){ alert('No shape data available'); return; }
+    const T = await getShapePoints(shapeValue);
+    if(!T.length){ alert('No shape data available'); return; }
 
-    const polyResampled = resampleUniform(baseShape, N);
-
-    // heuristic alignment
-    const cUser = centroid(userResampled);
-    const cPoly = centroid(polyResampled);
-    const H_scale = averageRadius(userResampled, cUser) / averageRadius(polyResampled, cPoly);
-    const H_tx = cUser[0] - cPoly[0];
-    const H_ty = cUser[1] - cPoly[1];
-    let heuristicAligned = rotateScaleTranslate(polyResampled, 0, H_scale, cPoly);
-    heuristicAligned = translatePoints(heuristicAligned, H_tx, H_ty);
-
-    const cTarget = centroid(baseShape);
-    let baseline = chamfer([cTarget], baseShape);
-    if(!isFinite(baseline) || baseline===0) baseline = 1e-6;
-
-    // --------------------- SEARCH ---------------------
-    const NUM_SAMPLES = 50000;
-    const txSamples = lhsGaussianSamples(NUM_SAMPLES, 0, 4);
-    const tySamples = lhsGaussianSamples(NUM_SAMPLES, 0, 4);
-    const thetaMin = (mode === 'Shapes') ? -Math.PI : -Math.PI/12;
-    const thetaMax = (mode === 'Shapes') ?  Math.PI :  Math.PI/12;
-    const thetaSamples = lhsUniform(NUM_SAMPLES, thetaMin, thetaMax);
-    const scaleSamples = lhsGaussianSamples(NUM_SAMPLES, 1, 0.03);
-
-    let bestScore = -Infinity;
-    let bestTheta=0,bestScale=1;
-    const cHeuristic = centroid(heuristicAligned);
-
-    for(let i=0;i<NUM_SAMPLES;i++){
-      const tx = txSamples[i], ty = tySamples[i];
-      const theta = thetaSamples[i], s = scaleSamples[i];
-
-      let candidate = rotateScaleTranslate(heuristicAligned, theta, s, cHeuristic);
-      candidate = translatePoints(candidate, tx, ty);
-
-      const rawCham = chamfer(userResampled, candidate);
-      const scoreProxy = -rawCham;
-
-      if(scoreProxy > bestScore){
-        bestScore = scoreProxy;
-        bestTheta = theta; 
-        bestScale = s;
+    // Normalise U and T, recording transformations N_U and N_T
+    const { normalizedPoints: normalisedU, transform: N_U } = normalise(U);
+    const { normalizedPoints: normalisedT, transform: N_T } = normalise(T);
+    
+    // Resample normalized shapes to 40 points each for search (using furthest point method)
+    const RESAMPLE_N = 40;
+    const resampledU = resampleFurthest(normalisedU, RESAMPLE_N);
+    const resampledT = resampleFurthest(normalisedT, RESAMPLE_N);
+    
+    // Search for optimal transformation S that minimizes chamfer(S(N_U(U)), N_T(T))
+    // Search is done on resampled normalized shapes
+    // Iterative refinement: search 1000 points, then zoom in around best, repeat 10 times
+    const NUM_ITERATIONS = 10;
+    const NUM_SAMPLES_PER_ITER = 1000;
+    
+    // Initial search ranges
+    let thetaMin = -Math.PI; // -180 degrees
+    let thetaMax = Math.PI;  // 180 degrees
+    let txMin = -0.2;
+    let txMax = 0.2;
+    let tyMin = -0.2;
+    let tyMax = 0.2;
+    let dilationMin = 0.8;
+    let dilationMax = 1.2;
+    
+    // Shrink factors
+    const THETA_SHRINK = 0.9;
+    const OTHER_SHRINK = 0.7;
+    
+    let bestScore = Infinity;
+    let bestS = createSTransform(0, 0, 0, 1);
+    
+    for(let iter = 0; iter < NUM_ITERATIONS; iter++){
+      // Search 1000 random points in current search space
+      for(let i = 0; i < NUM_SAMPLES_PER_ITER; i++){
+        const theta = thetaMin + Math.random() * (thetaMax - thetaMin);
+        const tx = txMin + Math.random() * (txMax - txMin);
+        const ty = tyMin + Math.random() * (tyMax - tyMin);
+        const dilation = dilationMin + Math.random() * (dilationMax - dilationMin);
+        
+        const sTransform = createSTransform(theta, tx, ty, dilation);
+        const transformedU = applySTransform(resampledU, sTransform);
+        // Use squared distance for search (faster, no sqrt)
+        const cham = chamferSquared(transformedU, resampledT);
+        
+        if(cham < bestScore){
+          bestScore = cham;
+          bestS = sTransform;
+        }
+      }
+      
+      // Shrink search space around best point (except on last iteration)
+      if(iter < NUM_ITERATIONS - 1){
+        const { theta: bestTheta, tx: bestTx, ty: bestTy, dilation: bestDilation } = bestS;
+        
+        // Shrink theta range by 0.9x
+        const thetaWidth = (thetaMax - thetaMin) * THETA_SHRINK;
+        thetaMin = bestTheta - thetaWidth / 2;
+        thetaMax = bestTheta + thetaWidth / 2;
+        
+        // Shrink translation ranges by 0.7x
+        const txWidth = (txMax - txMin) * OTHER_SHRINK;
+        txMin = bestTx - txWidth / 2;
+        txMax = bestTx + txWidth / 2;
+        
+        const tyWidth = (tyMax - tyMin) * OTHER_SHRINK;
+        tyMin = bestTy - tyWidth / 2;
+        tyMax = bestTy + tyWidth / 2;
+        
+        // Shrink dilation range by 0.7x
+        const dilationWidth = (dilationMax - dilationMin) * OTHER_SHRINK;
+        dilationMin = bestDilation - dilationWidth / 2;
+        dilationMax = bestDilation + dilationWidth / 2;
+        
+        // Clamp to original bounds
+        thetaMin = Math.max(-Math.PI, thetaMin);
+        thetaMax = Math.min(Math.PI, thetaMax);
+        txMin = Math.max(-0.2, txMin);
+        txMax = Math.min(0.2, txMax);
+        tyMin = Math.max(-0.2, tyMin);
+        tyMax = Math.min(0.2, tyMax);
+        dilationMin = Math.max(0.8, dilationMin);
+        dilationMax = Math.min(1.2, dilationMax);
       }
     }
+    
+    // Compute final score using actual Euclidean distance (with sqrt)
+    // Apply best S to full normalized shapes for accurate final score
+    const transformedUFinal = applySTransform(normalisedU, bestS);
+    const distance = chamfer(transformedUFinal, normalisedT);
+    
+    if(!isFinite(distance)) {
+      scoreFinalEl.textContent = 'Infinity';
+      return;
+    }
 
-    // apply best transform to base shape
-    const cBase = centroid(baseShape);
-    const combinedScale = H_scale * bestScale;
-    let finalHighRes = rotateScaleTranslate(baseShape, bestTheta, combinedScale, cBase);
-    finalHighRes = translatePoints(finalHighRes, H_tx, H_ty);
+    // Normalize score with power law: distance 1 → 0, distance 0.1 → 50, distance 0 → 100
+    // Formula: score = 100 * (1 - distance)^b
+    // where b = log(0.5) / log(0.9) ≈ 6.58
+    const POWER_LAW_EXPONENT = Math.log(0.5) / Math.log(0.9);
+    let normalizedScore;
+    if(distance >= 1) {
+      normalizedScore = 0;
+    } else if(distance <= 0) {
+      normalizedScore = 100;
+    } else {
+      normalizedScore = 100 * Math.pow(1 - distance, POWER_LAW_EXPONENT);
+    }
 
-    const rawChamferFinal = chamfer(userResampled, finalHighRes);
-    let scorePct = (1 - rawChamferFinal / combinedScale / baseline) * 100;
-    if(!isFinite(scorePct)) scorePct = -999;
+    // Display normalized score
+    // Only show rotation offset for countries
+    let scoreText = normalizedScore.toFixed(2);
+    if(mode === 'Countries'){
+      // Calculate rotation offset in degrees
+      // If optimal rotation to make U like T is theta, then U is off by -theta
+      const rotationRadians = bestS.theta;
+      const rotationDegrees = -rotationRadians * 180 / Math.PI;
+      
+      // Normalize to [-180, 180] range
+      let normalizedRotation = rotationDegrees;
+      while(normalizedRotation > 180) normalizedRotation -= 360;
+      while(normalizedRotation < -180) normalizedRotation += 360;
+      
+      // Add rotation info for countries
+      const rotationText = normalizedRotation >= 0 
+        ? `${normalizedRotation.toFixed(1)}° ↻`
+        : `${Math.abs(normalizedRotation).toFixed(1)}° ↺`;
+      scoreText = `${scoreText} (${rotationText})`;
+    }
+    scoreFinalEl.textContent = scoreText;
+
+    // Plot S^-1(N_U^-1(N_T(T))) over U
+    // Since S operates in normalized space, we apply transformations in the order that makes sense:
+    // 1. Normalize T: N_T(T)
+    const normalizedT = applyTransform(T, N_T);
+    // 2. Apply S^-1 in normalized space: S^-1(N_T(T))
+    const sInverseT = invertSTransform(normalizedT, bestS);
+    // 3. Denormalize using N_U's inverse: N_U^-1(S^-1(N_T(T)))
+    // This gives us the final result to plot
+    const finalT = invertTransform(sInverseT, N_U);
 
     overlayCtx.clearRect(0,0,overlayCanvas.width, overlayCanvas.height);
-    overlayCtx.globalAlpha = 0.95;
-    drawPoints(overlayCtx, finalHighRes, 'orange', 1);
+    overlayCtx.globalAlpha = 0.75;
+    // Use orange for overlay
+    drawPoints(overlayCtx, finalT, '#ff6b35', 2);
     overlayCtx.globalAlpha = 1.0;
 
-    scoreFinalEl.textContent = scorePct.toFixed(2);
-
-    if(!bestScores[shapeValue] || scorePct > bestScores[shapeValue]){
-      bestScores[shapeValue] = scorePct;
+    // Update best scores (higher normalized score is better)
+    if(!bestScores[shapeValue] || normalizedScore > bestScores[shapeValue]){
+      bestScores[shapeValue] = normalizedScore;
       updateBestScoresList();
     }
 
